@@ -186,16 +186,14 @@ Overall, the tmax for for both months fluctuates across the years and it is obvi
 ```{r}
 plot_i = ny_noaa %>%
   filter(!is.na(tmax_c), !is.na(tmin_c)) %>%
-  pivot_longer(tmax_c:tmin_c, names_to = "tmax_vs_tmin", values_to = "temp") %>%
-  ggplot(aes(x = year, y = temp, color = tmax_vs_tmin)) +
-  geom_line() + 
-  labs(title = "maximum vs minimum temperature over years",
-       x = "year", y = "temperature (C)")
+  ggplot(aes(x = tmax_c, y = tmin_c)) +
+  geom_hex() + 
+  labs(title = "maximum vs minimum temperature",
+       x = "tmax (C)", y = "tmin (C)")
 ```
 
 ### (ii) make a plot showing the distribution of snowfall values greater than 0 and less than 100 separately by year.
 ```{r}
-
 plot_ii = ny_noaa %>%
   filter(snow > 0, snow < 100) %>%
   mutate(year = factor(year)) %>%
