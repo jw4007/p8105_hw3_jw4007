@@ -3,22 +3,36 @@ title: "hw_3_jw4007"
 output: github_document
 ---
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(collapse = TRUE, message = FALSE)
-```
-
-```{r load_libraries}
 library(tidyverse)
-library(readxl)
+library(ggridges)
+library(patchwork)
+
+library(p8105.datasets)
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
 
 # problem 1
 
-```{r}
-library(p8105.datasets)
-data("instacart")
-```
 ### How many aisles are there, and which aisles are the most items ordered from?
 ```{r}
+data("instacart")
 instacart %>%
   group_by(aisle) %>%
   count(sort = TRUE)
@@ -46,12 +60,6 @@ ggplot(aisle_1000, aes(x = aisle, y = n)) +
   coord_flip()
   
 ```
-### Make a table showing the three most popular items in each of the aisles “baking ingredients”, “dog food care”, and “packaged vegetables fruits”. Include the number of times each item is ordered in your table.
-```{r}
-popular_aisles = 
-  group_by(instacart, aisle) %>%
-  select()
-```
 
 # problem 2
 
@@ -68,7 +76,8 @@ cardio = read.csv("./accel_data.csv") %>%
   mutate(weekday_vs_weekend = 
            ifelse(day == "Saturday", "weekend",
                   ifelse(day == "Sunday", "weekend", "weekday"))) %>%
-  mutate(minutes = as.numeric(minutes))
+  mutate(minutes = as.numeric(minutes)) %>%
+  mutate(day = factor(day, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")))
 ```
 There is `r nrow(cardio)` observations and `r ncol(cardio)` variables in the dataset. The variables are `r names(cardio)`
 
@@ -76,34 +85,120 @@ There is `r nrow(cardio)` observations and `r ncol(cardio)` variables in the dat
 ```{r}
 daily_cardio = cardio %>%
   group_by(week, day) %>%
-  summarise(daily_activity = sum(activity_counts), .groups = "drop") %>%
-  pivot_wider(names_from = day, values_from = daily_activity) %>%
-  select("week","Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+  summarise(daily_activity = sum(activity_counts)) %>%
+  pivot_wider(names_from = day, values_from = daily_activity) 
 
 knitr::kable(daily_cardio)
 ```
-It seems that the daily activity on weekdays are less than weekends.
+It seems that the daily activity on weekdays are less than weekends but the trend is not obvious.
 
 ### Make a single-panel plot that shows the 24-hour activity time courses for each day and use color to indicate day of the week.
 ```{r}
-ggplot(cardio, 
-       aes(x = minutes, y = activity_counts, color = day)) +
-  geom_line() +
+cardio %>%
+  mutate(hour = rep(rep(seq(1, 24), each = 60), 35)) %>%
+  mutate(hour = as.numeric(hour)) %>%
+  group_by(week, day, hour) %>%
+  summarize(hourly_activity = sum(activity_counts)) %>%
+  ggplot(aes(x = hour, y = hourly_activity, color = day)) +
+  geom_point() + geom_smooth(se = FALSE)
   labs(title = "24-hour avtivity time course",
-       x = "Time(minutes)",
-       y = "Avtivity") +
-  scale_x_continuous(
-    breaks = c(0, 360, 720, 1080, 1440),
-    labels = c("12a.m.", "6a.m.", "12p.m.", "6p.m.", "11:59p.m."),
-    limits = c(0, 1440))
+       x = "Time(hour)",
+       y = "Activity")
+ 
   
 ```
+The graph shows that the user is more active after 10a.m. and becomes less active after 8 p.m.. Also, he is relatively more active at Friday and Saturday nights.
 
+# Problem 3
+
+### Load dataset
 ```{r}
-
+library(p8105.datasets)
+data("ny_noaa")
 ```
+There is `r nrow(ny_noaa)` observations and `r ncol(ny_noaa)` variables in the dataset. The variables are `r names(ny_noaa)`, and they mean Weather station ID, Date of observation, Precipitation (tenths of mm), Snowfall (mm), Snow depth (mm), Maximum temperature (tenths of degrees C), Minimum temperature (tenths of degrees C) respectively.
+
+### summarizing missing data. 
+```{r}
+noaa_missing = ny_noaa %>%
+  summarize(across(prcp:tmin, ~sum(is.na(.)))) %>%
+  pivot_longer(prcp:tmin, names_to = "variable_name", values_to = "percent_missing") %>%
+  mutate(percent_missing = percent_missing/nrow(ny_noaa)*100)
+
+knitr::kable(noaa_missing, digits = 1)
+```
+There is a problem of missing data in this dataset. The percentage of missing data in Precipitation, snowfall, and snow depth are 5.6, 14.7, and 22.8 relatively. More concernedly, almost half of the minimum and maximum temperature data are missing and this might cause an issue in analysis.
+
+### Create separate variables for year, month, and day. Ensure observations for temperature, precipitation, and snowfall are given in reasonable units. 
+```{r}
+ny_noaa = ny_noaa %>%
+  mutate(date = lubridate::ymd(date),
+         year = lubridate::year(date),
+         month = lubridate::month(date),
+         year = factor(year),
+         month = as.factor(month),
+         day = lubridate::day(date)) %>%
+  mutate(tmax_c = as.numeric(tmax),
+         tmin_c = as.numeric(tmin),
+         prcp_mm = prcp,
+         snow_mm = snow,
+         snwd_mm = snwd)
+```
+### For snowfall, what are the most commonly observed values? Why?
+```{r}
+ny_noaa %>%
+  group_by(snow_mm) %>%
+  summarize(observed_snowfall = n()) %>%
+  arrange(desc(observed_snowfall))
+```
+The most observed snowfall data is 0 because it doesn't snow most time of the year in New York.
+
+### Make a two-panel plot showing the average max temperature in January and in July in each station across years.
+```{r}
+average_jan_p = 
+  ny_noaa %>%
+  filter(month == "1") %>%
+  filter(!is.na(tmax_c)) %>%
+  group_by(id, year) %>%
+  summarize(average_tmax = mean(tmax_c)) %>%
+  ggplot(aes(x = year, y = average_tmax, color = id)) +
+  geom_path() + theme(legend.position = "none") +
+  labs(title = "average max temperature in January",
+       x = "year",
+       y = "temperature (C)")
+
+average_july_p = 
+  ny_noaa %>%
+  filter(month == "2") %>%
+  filter(!is.na(tmax_c)) %>%
+  group_by(id, year) %>%
+  summarize(average_tmax = mean(tmax_c)) %>%
+  ggplot(aes(x = year, y = average_tmax, color = id)) +
+  geom_path() + theme(legend.position = "none") +
+  labs(title = "average max temperature in July",
+       x = "year",
+       y = "temperature (C)")
+
+(average_jan_p + average_july_p)
+```
+Overall, the tmax for for both months fluctuates across the years and it is obvious that the average tmax in July is generally higher than the average tmax in January. However, the temperature data collected by a few observatories produced outliers in the graph.
+
+### Make a two-panel plot showing (i) tmax vs tmin for the full dataset (note that a scatterplot may not be the best option); and (ii) make a plot showing the distribution of snowfall values greater than 0 and less than 100 separately by year.
 
 ```{r}
+plot_i = ny_noaa %>%
+  filter(!is.na(tmax_c), !is.na(tmin_c)) %>%
+  pivot_longer(tmax_c:tmin_c, names_to = "tmax_vs_tmin", values_to = "temp") %>%
+  ggplot(aes(x = year, y = temp, color = tmax_vs_tmin)) +
+  geom_line() + 
+  labs(title = "maximum vs minimum temperature over years",
+       x = "year", y = "temperature (C)")
 
+plot_ii = ny_noaa %>%
+  filter(snow > 0, snow < 100) %>%
+  ggplot(aes(x = year, y = snow, color = )) +
+  geom_line()
+
+plot_i + plot_ii
 ```
 
