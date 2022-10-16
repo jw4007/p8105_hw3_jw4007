@@ -135,7 +135,6 @@ ny_noaa = ny_noaa %>%
   mutate(date = lubridate::ymd(date),
          year = lubridate::year(date),
          month = lubridate::month(date),
-         year = factor(year),
          month = as.factor(month),
          day = lubridate::day(date)) %>%
   mutate(tmax_c = as.numeric(tmax),
@@ -183,8 +182,7 @@ average_july_p =
 ```
 Overall, the tmax for for both months fluctuates across the years and it is obvious that the average tmax in July is generally higher than the average tmax in January. However, the temperature data collected by a few observatories produced outliers in the graph.
 
-### Make a two-panel plot showing (i) tmax vs tmin for the full dataset (note that a scatterplot may not be the best option); and (ii) make a plot showing the distribution of snowfall values greater than 0 and less than 100 separately by year.
-
+### (i) make a plot showing tmax vs tmin for the full dataset (note that a scatterplot may not be the best option)
 ```{r}
 plot_i = ny_noaa %>%
   filter(!is.na(tmax_c), !is.na(tmin_c)) %>%
@@ -193,12 +191,25 @@ plot_i = ny_noaa %>%
   geom_line() + 
   labs(title = "maximum vs minimum temperature over years",
        x = "year", y = "temperature (C)")
+```
+
+### (ii) make a plot showing the distribution of snowfall values greater than 0 and less than 100 separately by year.
+```{r}
 
 plot_ii = ny_noaa %>%
   filter(snow > 0, snow < 100) %>%
-  ggplot(aes(x = year, y = snow, color = )) +
-  geom_line()
+  mutate(year = factor(year)) %>%
+  ggplot(aes(x = snow, y = year, fill = year )) +
+  geom_density_ridges() + theme(legend.position = "none") +
+    labs(title = "the distribution of snowfall values greater than 0 and less than 100 separately by year", 
+         x = "snowfall (mm)",
+         y = "year")
 
+```
+
+### combining the above into a two panel plot
+```{r}
 plot_i + plot_ii
 ```
+
 
